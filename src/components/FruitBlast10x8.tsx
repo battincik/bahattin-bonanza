@@ -20,13 +20,13 @@ const ROWS = 8;
 const CELL_COUNT = COLS * ROWS;
 
 const FRUITS = [
-    { key: "apple", emoji: "🍎", color: "bg-red-300", base: 0.2 },
-    { key: "watermelon", emoji: "🍉", color: "bg-green-300", base: 0.25 },
-    { key: "strawberry", emoji: "🍓", color: "bg-rose-300", base: 0.3 },
-    { key: "cherry", emoji: "🍒", color: "bg-pink-300", base: 0.35 },
-    { key: "pineapple", emoji: "🍍", color: "bg-amber-300", base: 0.4 },
-    { key: "peach", emoji: "🍑", color: "bg-orange-300", base: 0.5 },
-    { key: "banana", emoji: "🍌", color: "bg-yellow-300", base: 0.75 },
+    { key: "apple", emoji: "🍎", color: "bg-red-300", base: 0.25 },
+    { key: "watermelon", emoji: "🍉", color: "bg-green-300", base: 0.3 },
+    { key: "strawberry", emoji: "🍓", color: "bg-rose-300", base: 0.4 },
+    { key: "cherry", emoji: "🍒", color: "bg-pink-300", base: 0.5 },
+    { key: "pineapple", emoji: "🍍", color: "bg-amber-300", base: 0.6 },
+    { key: "peach", emoji: "🍑", color: "bg-orange-300", base: 0.7 },
+    { key: "banana", emoji: "🍌", color: "bg-yellow-300", base: 0.8 },
     { key: "grape", emoji: "🍇", color: "bg-purple-300", base: 1.0 },
     { key: "kiwi", emoji: "🥝", color: "bg-green-300", base: 1.5 },
 ] as const;
@@ -75,7 +75,7 @@ const STORAGE_KEYS = {
     AUTO_COUNT: 'fruitBlast_autoCount',
 } as const;
 
-function getFromStorage(key: string, defaultValue: any): any {
+function getFromStorage<T>(key: string, defaultValue: T): T {
     if (typeof window === 'undefined') return defaultValue;
     try {
         const item = localStorage.getItem(key);
@@ -85,7 +85,7 @@ function getFromStorage(key: string, defaultValue: any): any {
     }
 }
 
-function setToStorage(key: string, value: any): void {
+function setToStorage<T>(key: string, value: T): void {
     if (typeof window === 'undefined') return;
     try {
         localStorage.setItem(key, JSON.stringify(value));
@@ -95,7 +95,7 @@ function setToStorage(key: string, value: any): void {
 }
 
 const MULT_VALUES = [2, 4, 8, 16, 32, 64, 128, 200] as const;
-const MULT_WEIGHTS = [10, 25, 20, 16, 12, 9, 7, 1];
+const MULT_WEIGHTS = [25, 20, 15, 10, 8, 4, 2, 1];
 const MULT_CUM = (() => {
     const acc: number[] = [];
     let s = 0;
@@ -286,7 +286,7 @@ export default function FruitBlast10x8() {
                     win: pay,
                 };
                 currentSpinBursts.push(burstEntry); // Bu spin'in patlamalarına ekle
-                setBurstHistory(prev => [burstEntry, ...prev].slice(0, 20));
+                setBurstHistory(prev => [burstEntry, ...prev].slice(0, 50));
             }
 
             // patlat → anında boş
@@ -438,7 +438,7 @@ export default function FruitBlast10x8() {
                     <div className="bg-slate-800/70 rounded-2xl p-4 h-fit">
                         <h3 className="text-sm font-semibold mb-3 text-slate-300">Bahis Geçmişi</h3>
                         <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">
-                            {betHistory.slice(-10).reverse().map((entry, idx) => (
+                            {betHistory.slice(-2500).reverse().map((entry, idx) => (
                                 <div
                                     key={`bet-${entry.id}-${idx}`}
                                     className={`rounded-lg border transition-all duration-300 ${
