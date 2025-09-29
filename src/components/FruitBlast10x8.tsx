@@ -142,9 +142,9 @@ const rcOf = (idx: number) => ({ r: Math.floor(idx / COLS), c: idx % COLS });
 
 function findAdjacencyPops(
     grid: Cell[]
-): { fruitIndex: number; indices: number[] }[] {
+): { fruitIndex: number; indices: number[]; win: number }[] {
     const visited = new Array(grid.length).fill(false);
-    const res: { fruitIndex: number; indices: number[] }[] = [];
+    const res: { fruitIndex: number; indices: number[]; win: number }[] = [];
     for (let i = 0; i < grid.length; i++) {
         if (visited[i]) continue;
         visited[i] = true;
@@ -168,8 +168,19 @@ function findAdjacencyPops(
                 }
             }
         }
-        if (cluster.length >= 4)
-            res.push({ fruitIndex: fruit, indices: cluster });
+        if (cluster.length >= 4) {
+            // Bu cluster'ın win'ini hesapla
+            const baseFruit = FRUITS[fruit];
+            let clusterWin = baseFruit.base * cluster.length;
+            
+            // Multiplier kontrolü - cluster'daki en yüksek multiplier
+            const maxMult = Math.max(...cluster.map(idx => grid[idx].mult || 1));
+            if (maxMult > 1) {
+                clusterWin *= maxMult;
+            }
+            
+            res.push({ fruitIndex: fruit, indices: cluster, win: clusterWin });
+        }
     }
     return res;
 }
@@ -206,6 +217,7 @@ export default function FruitBlast10x8() {
     const [betHistory, setBetHistory] = useState<BetHistoryEntry[]>([]);
     const [burstHistory, setBurstHistory] = useState<BurstHistoryEntry[]>([]);
     const [expandedBetId, setExpandedBetId] = useState<string | null>(null);
+    const [lastBurstId, setLastBurstId] = useState<string | null>(null);
 
     // bakiye
     const [balance, setBalance] = useState<number>(100);
@@ -219,9 +231,178 @@ export default function FruitBlast10x8() {
     const [autoCount, setAutoCount] = useState<number>(0);
     const [autoTotal, setAutoTotal] = useState<number>(0);
     const autoSelRef = useRef<HTMLSelectElement | null>(null);
+    const gridRef = useRef<HTMLDivElement | null>(null);
 
     // loading state
     const [isLoading, setIsLoading] = useState(true);
+
+    // patlama mesajları
+    const [burstMessages, setBurstMessages] = useState<{id: string; fruit: number; count: number; mult: number; win: number; x: number; y: number}[]>([]);
+
+    // ses efektleri
+    const [tumbleLevel, setTumbleLevel] = useState<number>(0);
+
+    // Süper tatmin edici patlama ses efekti
+    const playBurstSound = useCallback((level: number) => {
+        try {
+            const AudioContextClass = window.AudioContext || (window as typeof window & {webkitAudioContext: typeof AudioContext}).webkitAudioContext;
+            const audioContext = new AudioContextClass();
+            const now = audioContext.currentTime;
+            
+            // Kompressor ekle - ses daha güçlü olsun
+            const compressor = audioContext.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-24, now);
+            compressor.knee.setValueAtTime(30, now);
+            compressor.ratio.setValueAtTime(12, now);
+            compressor.attack.setValueAtTime(0.003, now);
+            compressor.release.setValueAtTime(0.25, now);
+            compressor.connect(audioContext.destination);
+            
+            // 1. PUNCH - Ani güçlü darbe (kick drum tarzı)
+            const kickOsc = audioContext.createOscillator();
+            const kickGain = audioContext.createGain();
+            const kickFilter = audioContext.createBiquadFilter();
+            
+            kickOsc.type = 'sine';
+            kickOsc.frequency.setValueAtTime(80 + level * 10, now);
+            kickOsc.frequency.exponentialRampToValueAtTime(20, now + 0.1);
+            
+            kickFilter.type = 'lowpass';
+            kickFilter.frequency.setValueAtTime(200, now);
+            kickFilter.Q.setValueAtTime(15, now);
+            
+            kickOsc.connect(kickFilter);
+            kickFilter.connect(kickGain);
+            kickGain.connect(compressor);
+            
+            // PUNCH envelope - hızlı ve güçlü (50% ses seviyesi)
+            kickGain.gain.setValueAtTime(0, now);
+            kickGain.gain.linearRampToValueAtTime(0.6, now + 0.002);
+            kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            
+            // 2. SNAP - Keskin çatlama sesi
+            const snapOsc = audioContext.createOscillator();
+            const snapGain = audioContext.createGain();
+            const snapFilter = audioContext.createBiquadFilter();
+            
+            snapOsc.type = 'triangle';
+            snapOsc.frequency.setValueAtTime(800 + level * 200, now);
+            snapOsc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
+            
+            snapFilter.type = 'bandpass';
+            snapFilter.frequency.setValueAtTime(1200, now);
+            snapFilter.Q.setValueAtTime(8, now);
+            
+            snapOsc.connect(snapFilter);
+            snapFilter.connect(snapGain);
+            snapGain.connect(compressor);
+            
+            // SNAP envelope - çok hızlı (50% ses seviyesi)
+            snapGain.gain.setValueAtTime(0.4, now + 0.001);
+            snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            
+            // 3. SPARKLE - Parlak üst frekanslar
+            const sparkleOsc = audioContext.createOscillator();
+            const sparkleGain = audioContext.createGain();
+            const sparkleFilter = audioContext.createBiquadFilter();
+            
+            sparkleOsc.type = 'sawtooth';
+            sparkleOsc.frequency.setValueAtTime(4000 + level * 1000, now);
+            
+            sparkleFilter.type = 'highpass';
+            sparkleFilter.frequency.setValueAtTime(3000, now);
+            sparkleFilter.Q.setValueAtTime(2, now);
+            
+            sparkleOsc.connect(sparkleFilter);
+            sparkleFilter.connect(sparkleGain);
+            sparkleGain.connect(compressor);
+            
+            // SPARKLE envelope (25% ses seviyesi - ince ses daha yumuşak)
+            sparkleGain.gain.setValueAtTime(0, now + 0.003);
+            sparkleGain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+            sparkleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            
+            // 4. WHOOSH - Hava hareket efekti (pink noise)
+            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.3, audioContext.sampleRate);
+            const noiseData = noiseBuffer.getChannelData(0);
+            
+            // Pink noise algoritması
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < noiseData.length; i++) {
+                const white = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750759;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                const pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                b6 = white * 0.115926;
+                
+                const envelope = Math.exp(-i / noiseData.length * 8);
+                noiseData[i] = pink * envelope * 0.3;
+            }
+            
+            const noiseSource = audioContext.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
+            const noiseGain = audioContext.createGain();
+            const noiseFilter = audioContext.createBiquadFilter();
+            
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(1500, now);
+            noiseFilter.Q.setValueAtTime(0.7, now);
+            
+            noiseSource.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(compressor);
+            
+            // WHOOSH envelope (50% ses seviyesi)
+            noiseGain.gain.setValueAtTime(0, now + 0.01);
+            noiseGain.gain.linearRampToValueAtTime(0.3, now + 0.03);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+            
+            // 5. DING - Metalik çınlama (20 tumble'a kadar ses tonları)
+            const dingOsc = audioContext.createOscillator();
+            const dingGain = audioContext.createGain();
+            
+            // 20 tumble'a kadar notalar (C3'ten C7'ye kadar geniş aralık)
+            const dingFreqs = [
+                130.81, 146.83, 164.81, 174.61, 196.00, // C3, D3, E3, F3, G3
+                220.00, 246.94, 261.63, 293.66, 329.63, // A3, B3, C4, D4, E4  
+                349.23, 392.00, 440.00, 493.88, 523.25, // F4, G4, A4, B4, C5
+                587.33, 659.25, 698.46, 783.99, 880.00  // D5, E5, F5, G5, A5
+            ];
+            dingOsc.type = 'sine';
+            dingOsc.frequency.setValueAtTime(dingFreqs[Math.min(level, dingFreqs.length - 1)], now);
+            
+            dingOsc.connect(dingGain);
+            dingGain.connect(compressor);
+            
+            // DING envelope - uzun süren çınlama (25% ses seviyesi - ince ses daha yumuşak)
+            dingGain.gain.setValueAtTime(0, now + 0.02);
+            dingGain.gain.linearRampToValueAtTime(0.125, now + 0.05);
+            dingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+            
+            // Tüm sesleri başlat
+            kickOsc.start(now);
+            kickOsc.stop(now + 0.15);
+            
+            snapOsc.start(now + 0.001);
+            snapOsc.stop(now + 0.08);
+            
+            sparkleOsc.start(now + 0.003);
+            sparkleOsc.stop(now + 0.12);
+            
+            noiseSource.start(now + 0.01);
+            noiseSource.stop(now + 0.25);
+            
+            dingOsc.start(now + 0.02);
+            dingOsc.stop(now + 0.8);
+            
+        } catch (error) {
+            console.log('Ses çalma hatası:', error);
+        }
+    }, []);
     
     // localStorage'dan değerleri yükle (hydration sonrası)
     useEffect(() => {
@@ -235,6 +416,16 @@ export default function FruitBlast10x8() {
         setIsLoading(false);
     }, []);
 
+    // Patlama mesajlarını 1.5 saniye sonra temizle
+    useEffect(() => {
+        if (burstMessages.length > 0) {
+            const timer = setTimeout(() => {
+                setBurstMessages([]);
+            }, 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [burstMessages]);
+
     const spinOnce = useCallback(async (): Promise<number> => {
         if (balance < bet) return 0; // yetersiz bakiye → başlamasın
         setBalance((b) => {
@@ -246,9 +437,11 @@ export default function FruitBlast10x8() {
         setIsSpinning(true);
         setLastWin(0);
         setTumbleCount(0);
+        setTumbleLevel(0); // Tumble seviyesini sıfırla
         
         // Spin başlangıcında son patlamaları sıfırla
         setBurstHistory([]);
+        setLastBurstId(null); // Son burst id'yi temizle
         const currentSpinBursts: BurstHistoryEntry[] = []; // Bu spin'e özel burst listesi
 
         // ilk düşüş (tüm board)
@@ -264,29 +457,62 @@ export default function FruitBlast10x8() {
             const pops = findAdjacencyPops(cur);
             if (pops.length === 0) break;
 
-            // ödeme (kümedeki en yüksek multiplier)
+            // Tumble seviyesini artır ve ses çal
+            setTumbleLevel(prev => {
+                const newLevel = prev;
+                playBurstSound(newLevel);
+                return prev + 1;
+            });
+
+            // ödeme (cluster win'lerini topla)
             let tumbleWin = 0;
             for (const p of pops) {
-                const base = FRUITS[p.fruitIndex].base;
-                const count = p.indices.length;
-                let pay = payoutForCount(base, count, bet);
+                tumbleWin += p.win * bet;
+
+                // Real-time olarak patlama geçmişini güncelle
                 const maxMult = p.indices.reduce(
                     (mx, idx) => Math.max(mx, cur[idx].mult ?? 1),
                     1
                 );
-                pay *= maxMult;
-                tumbleWin += pay;
-
-                // Real-time olarak patlama geçmişini güncelle
                 const burstEntry: BurstHistoryEntry = {
                     id: makeId("burst"),
                     fruit: p.fruitIndex,
-                    count,
+                    count: p.indices.length,
                     mult: maxMult,
-                    win: pay,
+                    win: p.win * bet,
                 };
                 currentSpinBursts.push(burstEntry); // Bu spin'in patlamalarına ekle
                 setBurstHistory(prev => [burstEntry, ...prev].slice(0, 50));
+                setLastBurstId(burstEntry.id); // Son eklenen burst'ü işaretle
+
+                // Patlama mesajı için cluster'ın merkez pozisyonunu hesapla
+                const avgRow = p.indices.reduce((sum, idx) => sum + rcOf(idx).r, 0) / p.indices.length;
+                const avgCol = p.indices.reduce((sum, idx) => sum + rcOf(idx).c, 0) / p.indices.length;
+                
+                let x = 50, y = 50; // varsayılan merkez
+                
+                if (gridRef.current) {
+                    const gridRect = gridRef.current.getBoundingClientRect();
+                    const cellWidth = gridRect.width / 10; // 10 kolon
+                    const cellHeight = gridRect.height / 8; // 8 satır
+                    
+                    // Cell'in merkez pozisyonunu hesapla
+                    const cellCenterX = gridRect.left + (avgCol + 0.5) * cellWidth;
+                    const cellCenterY = gridRect.top + (avgRow + 0.5) * cellHeight;
+                    
+                    // Viewport'a göre yüzde hesapla
+                    x = (cellCenterX / window.innerWidth) * 100;
+                    y = (cellCenterY / window.innerHeight) * 100;
+                }
+                
+                setBurstMessages(prev => [...prev, {
+                    id: makeId("burstMsg"),
+                    fruit: p.fruitIndex,
+                    count: p.indices.length,
+                    mult: maxMult,
+                    win: p.win * bet,
+                    x, y
+                }]);
             }
 
             // patlat → anında boş
@@ -338,7 +564,7 @@ export default function FruitBlast10x8() {
         
         setIsSpinning(false);
         return totalWin;
-    }, [bet, balance, speedMul]);
+    }, [bet, balance, speedMul, playBurstSound]);
 
     const handleSpin = useCallback(async () => {
         if (isSpinning || autoCount > 0) return; // autospin varken spin yok
@@ -416,8 +642,31 @@ export default function FruitBlast10x8() {
     }
 
     return (
-        <div className="h-screen w-full bg-slate-900 text-slate-100 flex flex-col overflow-hidden">
+        <div className="h-screen w-full bg-slate-900 text-slate-100 flex flex-col overflow-hidden relative">
             <style>{keyframesCSS}</style>
+            
+            {/* Patlama Mesajları */}
+            {burstMessages.map((msg) => (
+                <div
+                    key={msg.id}
+                    className="absolute z-50 pointer-events-none"
+                    style={{
+                        left: `${msg.x}%`,
+                        top: `${msg.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                        animation: 'burstMessage 1.5s ease-out forwards'
+                    }}
+                >
+                    <div className="text-green-400 text-5xl font-bold whitespace-nowrap"
+                         style={{
+                             fontFamily: 'Impact, "Arial Black", sans-serif',
+                             textShadow: '4px 4px 8px rgba(0,0,0,0.8), 2px 2px 4px rgba(0,0,0,0.9)',
+                             filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.7))'
+                         }}>
+                        {msg.count}x {FRUITS[msg.fruit].emoji} {msg.mult > 1 ? `×${msg.mult}` : ''} = ₺{new Intl.NumberFormat('tr-TR').format(Math.round(msg.win))}
+                    </div>
+                </div>
+            ))}
 
             <div className="max-w-[90vw] w-full mx-auto flex flex-col flex-1 py-2 px-4 overflow-hidden">
                 {/* başlık */}
@@ -514,7 +763,7 @@ export default function FruitBlast10x8() {
 
                     {/* Orta - Oyun Grid'i */}
                     <div className="relative flex justify-center flex-1 pb-4">
-                        <div className="grid grid-cols-10 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 p-4 sm:p-6 lg:p-8 xl:p-10 bg-slate-900/50 rounded-xl sm:rounded-2xl border border-slate-700/30">
+                        <div ref={gridRef} className="grid grid-cols-10 gap-3 sm:gap-4 lg:gap-5 xl:gap-6 p-4 sm:p-6 lg:p-8 xl:p-10 bg-slate-900/50 rounded-xl sm:rounded-2xl border border-slate-700/30">
                             {grid.length > 0 && grid.map((cell, idx) => (
                                 <div key={cell.id + ":wrap"} className="w-full">
                                     <CellView
@@ -536,7 +785,7 @@ export default function FruitBlast10x8() {
                                     key={`burst-${burst.id}-${idx}`}
                                     className="flex items-center gap-3 p-3 rounded-lg bg-slate-700/50 transition-all duration-500"
                                     style={{
-                                        animation: `slideInDown 0.5s ease-out ${idx * 0.1}s both`
+                                        animation: burst.id === lastBurstId ? 'slideInDown 0.5s ease-out both' : undefined
                                     }}
                                 >
                                     {/* Mini Cell */}
@@ -894,6 +1143,7 @@ function CellView({
                             />
                         ))}
                     </div>
+
                 </div>
             )}
 
@@ -1011,6 +1261,26 @@ const keyframesCSS = `
 .pop-spark.s4 { --dx:  12px; --dy: -24px; }
 .pop-spark.s5 { --dx: -22px; --dy: 14px; }
 .pop-spark.s6 { --dx:  20px; --dy: -16px; }
+
+/* Patlama mesajı animasyonu */
+@keyframes burstMessage {
+  0% { 
+    transform: translate(-50%, -50%) scale(0.5) translateY(0px); 
+    opacity: 0; 
+  }
+  20% { 
+    transform: translate(-50%, -50%) scale(1.3) translateY(-20px); 
+    opacity: 1; 
+  }
+  80% { 
+    transform: translate(-50%, -50%) scale(1.1) translateY(-40px); 
+    opacity: 1; 
+  }
+  100% { 
+    transform: translate(-50%, -50%) scale(0.8) translateY(-60px); 
+    opacity: 0; 
+  }
+}
 
 /* Scrollbar gizleme */
 .scrollbar-hide {
