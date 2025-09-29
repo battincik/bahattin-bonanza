@@ -95,7 +95,7 @@ function setToStorage<T>(key: string, value: T): void {
 }
 
 const MULT_VALUES = [2, 4, 8, 16, 32, 64, 128, 200] as const;
-const MULT_WEIGHTS = [25, 20, 15, 10, 8, 4, 2, 1];
+const MULT_WEIGHTS = [25, 20, 15, 10, 8, 4, 2, 50];
 const MULT_CUM = (() => {
     const acc: number[] = [];
     let s = 0;
