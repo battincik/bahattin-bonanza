@@ -95,7 +95,7 @@ function setToStorage<T>(key: string, value: T): void {
 }
 
 const MULT_VALUES = [2, 4, 8, 16, 32, 64, 128, 200] as const;
-const MULT_WEIGHTS = [25, 20, 15, 10, 8, 4, 2, 50];
+const MULT_WEIGHTS = [25, 20, 15, 10, 8, 4, 2, 1];
 const MULT_CUM = (() => {
     const acc: number[] = [];
     let s = 0;
@@ -130,10 +130,13 @@ function makeRandomGrid(entering = false): Cell[] {
 }
 
 function payoutForCount(base: number, count: number, bet: number): number {
-    if (count >= 10) return base * 4 * bet;
-    if (count >= 8) return base * 2.2 * bet;
-    if (count >= 6) return base * 1.2 * bet;
-    if (count >= 4) return base * 0.5 * bet;
+    if (count >= 10) return base * 10 * bet;
+    if (count >= 9) return base * 5 * bet;
+    if (count >= 8) return base * 4 * bet;
+    if (count >= 7) return base * 3 * bet;
+    if (count >= 6) return base * 2 * bet;
+    if (count >= 5) return base * 1.5 * bet;
+    if (count >= 4) return base * 1 * bet;
     return 0;
 }
 
