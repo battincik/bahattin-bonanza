@@ -602,10 +602,15 @@ export default function FruitBlast10x8() {
     const incBet10 = useCallback(() => {
         const newBet = Math.min(1000000000, bet + 10);
         setBet(newBet);
-        setToStorage(STORAGE_KEYS.BET, newBet);
+        setToStorage(STORAGE_KEYS.BET, newBet); 
     }, [bet]);
     const incBet100 = useCallback(() => {
         const newBet = Math.min(1000000000, bet + 100);
+        setBet(newBet);
+        setToStorage(STORAGE_KEYS.BET, newBet);
+    }, [bet]);
+    const incBet1000 = useCallback(() => {
+        const newBet = Math.min(1000000000, bet + 1000);
         setBet(newBet);
         setToStorage(STORAGE_KEYS.BET, newBet);
     }, [bet]);
@@ -621,6 +626,11 @@ export default function FruitBlast10x8() {
     }, [bet]);
     const decBet100 = useCallback(() => {
         const newBet = Math.max(1, bet - 100);
+        setBet(newBet);
+        setToStorage(STORAGE_KEYS.BET, newBet);
+    }, [bet]);
+    const decBet1000 = useCallback(() => {
+        const newBet = Math.max(1, bet - 1000);
         setBet(newBet);
         setToStorage(STORAGE_KEYS.BET, newBet);
     }, [bet]);
@@ -876,7 +886,7 @@ export default function FruitBlast10x8() {
                                     </button>
                                 </div>
                                 
-                                <div className="grid grid-cols-3 gap-1 mb-2">
+                                <div className="grid grid-cols-4 gap-1 mb-2">
                                     <button
                                         onClick={incBet1}
                                         disabled={isSpinning || autoCount > 0}
@@ -910,9 +920,20 @@ export default function FruitBlast10x8() {
                                     >
                                         +100
                                     </button>
+                                    <button
+                                        onClick={incBet1000}
+                                        disabled={isSpinning || autoCount > 0}
+                                        className={`px-2 py-1 rounded text-xs ${
+                                            isSpinning || autoCount > 0
+                                                ? "bg-slate-800 text-slate-500"
+                                                : "bg-slate-700 hover:bg-slate-600"
+                                        }`}
+                                    >
+                                        +1000
+                                    </button>
                                 </div>
                                 
-                                <div className="grid grid-cols-3 gap-1">
+                                <div className="grid grid-cols-4 gap-1">
                                     <button
                                         onClick={decBet1}
                                         disabled={isSpinning || autoCount > 0}
@@ -945,6 +966,17 @@ export default function FruitBlast10x8() {
                                         }`}
                                     >
                                         -100
+                                    </button>
+                                    <button
+                                        onClick={decBet1000}
+                                        disabled={isSpinning || autoCount > 0}
+                                        className={`px-2 py-1 rounded text-xs ${
+                                            isSpinning || autoCount > 0
+                                                ? "bg-slate-800 text-slate-500"
+                                                : "bg-slate-700 hover:bg-slate-600"
+                                        }`}
+                                    >
+                                        -1000
                                     </button>
                                 </div>
                             </div>
