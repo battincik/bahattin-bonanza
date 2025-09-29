@@ -29,6 +29,7 @@ const FRUITS = [
     { key: "banana", emoji: "🍌", color: "bg-yellow-300", base: 0.8 },
     { key: "grape", emoji: "🍇", color: "bg-purple-300", base: 1.0 },
     { key: "kiwi", emoji: "🥝", color: "bg-green-300", base: 1.5 },
+    { key: "mango", emoji: "🥭", color: "bg-yellow-400", base: 2.0 },
 ] as const;
 
 type Cell = {
