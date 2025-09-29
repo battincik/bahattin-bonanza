@@ -587,21 +587,21 @@ export default function FruitBlast10x8() {
         setToStorage(STORAGE_KEYS.BET, 1);
     }, []);
     const maxBet = useCallback(() => {
-        setBet(50000);
-        setToStorage(STORAGE_KEYS.BET, 50000);
+        setBet(1000000);
+        setToStorage(STORAGE_KEYS.BET, 1000000);
     }, []);
     const incBet1 = useCallback(() => {
-        const newBet = Math.min(50000, bet + 1);
+        const newBet = Math.min(1000000, bet + 1);
         setBet(newBet);
         setToStorage(STORAGE_KEYS.BET, newBet);
     }, [bet]);
     const incBet10 = useCallback(() => {
-        const newBet = Math.min(50000, bet + 10);
+        const newBet = Math.min(1000000, bet + 10);
         setBet(newBet);
         setToStorage(STORAGE_KEYS.BET, newBet);
     }, [bet]);
     const incBet100 = useCallback(() => {
-        const newBet = Math.min(50000, bet + 100);
+        const newBet = Math.min(1000000, bet + 100);
         setBet(newBet);
         setToStorage(STORAGE_KEYS.BET, newBet);
     }, [bet]);
